@@ -8,6 +8,7 @@
 #define _WIZNET_SPI_FUNCS_H_
  
 #include <stdint.h>
+void set_cs_select (uint8_t num );
 
 typedef struct wiznet_spi_funcs** wiznet_spi_handle_t;
 #if   (_WIZCHIP_ == W6300)
@@ -20,8 +21,8 @@ typedef struct wiznet_spi_config
     uint8_t data_io1_pin;
     uint8_t data_io2_pin;
     uint8_t data_io3_pin;
-    uint8_t cs_pin;
-    uint8_t reset_pin;
+    uint8_t cs_pin[2];
+    uint8_t reset_pin[2];
     uint8_t irq_pin;
 } wiznet_spi_config_t; 
 
@@ -29,8 +30,8 @@ typedef struct wiznet_spi_funcs {
     void (*close)(wiznet_spi_handle_t funcs);
     void (*set_active)(wiznet_spi_handle_t funcs);
     void (*set_inactive)(void);
-    void (*frame_start)(void);
-    void (*frame_end)(void);
+    void (*frame_start)(uint8_t cs);
+    void (*frame_end)(uint8_t cs);
     void (*read_byte)(uint8_t opcode, uint16_t addr, uint8_t* pBuf, uint16_t len);
     void (*write_byte)(uint8_t opcode, uint16_t addr, uint8_t* pBuf, uint16_t len);
     void (*read_buffer)(uint8_t *pBuf, uint16_t len);

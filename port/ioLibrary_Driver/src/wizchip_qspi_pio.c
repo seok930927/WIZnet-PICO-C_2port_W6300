@@ -57,6 +57,13 @@
 
 #define SPI_HEADER_LEN 3
 
+static uint8_t cs_select = 0; 
+
+void set_cs_select (uint8_t num ){
+    cs_select =  num ;   
+}
+
+
 typedef struct spi_pio_state {
     wiznet_spi_funcs_t *funcs;
     const wiznet_spi_config_t *spi_config;
@@ -151,9 +158,13 @@ static void pio_spi_gpio_setup(spi_pio_state_t *state) {
     #endif
 
     // Setup CS
-    gpio_init(state->spi_config->cs_pin);
-    gpio_set_dir(state->spi_config->cs_pin, GPIO_OUT);
-    gpio_put(state->spi_config->cs_pin, true);
+    gpio_init(state->spi_config->cs_pin[0]   );
+    gpio_set_dir(state->spi_config->cs_pin[0], GPIO_OUT);
+    gpio_put(state->spi_config->cs_pin[0] , true);
+    // Setup CS
+    gpio_init(state->spi_config->cs_pin[1]   );
+    gpio_set_dir(state->spi_config->cs_pin[1], GPIO_OUT);
+    gpio_put(state->spi_config->cs_pin[1] , true);
 
     // Setup reset
     gpio_init(state->spi_config->irq_pin);
@@ -421,8 +432,8 @@ static void wiznet_spi_pio_close(wiznet_spi_handle_t handle) {
     }
 }
 
-static void cs_set(spi_pio_state_t *state, bool value) {
-    gpio_put(state->spi_config->cs_pin, value);
+static void cs_set(spi_pio_state_t *state, uint8_t cs , bool value) {
+    gpio_put(state->spi_config->cs_pin[cs] , value);
 }
 
 static __noinline void ns_delay(uint32_t ns) {
@@ -431,7 +442,7 @@ static __noinline void ns_delay(uint32_t ns) {
     busy_wait_at_least_cycles(cycles);
 }
 
-static void wiznet_spi_pio_frame_start(void) {
+static void wiznet_spi_pio_frame_start(uint8_t cs) {
     assert(active_state);
     #if   (_WIZCHIP_ == W6300)
         #if (_WIZCHIP_QSPI_MODE_ == QSPI_SINGLE_MODE)
@@ -455,13 +466,13 @@ static void wiznet_spi_pio_frame_start(void) {
         gpio_pull_down(active_state->spi_config->clock_pin);
     #endif
     // Pull CS low
-    cs_set(active_state, false);
+    cs_set(active_state,cs, false);
 }
 
-static void wiznet_spi_pio_frame_end(void) {
+static void wiznet_spi_pio_frame_end(uint8_t cs) {
     assert(active_state);
     // from this point a positive edge will cause an IRQ to be pending
-    cs_set(active_state, true);
+    cs_set(active_state, cs,true);
     // we need to wait a bit in case the irq line is incorrectly high
 #ifdef IRQ_SAMPLE_DELAY_NS
     ns_delay(IRQ_SAMPLE_DELAY_NS);
@@ -472,11 +483,15 @@ static void wiznet_spi_pio_frame_end(void) {
 // To read a byte we must first have been asked to write a 3 byte spi header
 void wiznet_spi_pio_read_byte(uint8_t op_code, uint16_t AddrSel, uint8_t *rx, uint16_t rx_length)  
 {
-  uint8_t command_buf[8] = {0,};
+    uint8_t command_buf[8] = {0,};
+
+    uint8_t chipSelect = ((op_code & 0b00100000) >> 5)| cs_select ; 
+    op_code = (op_code & 0xDF) ; 
+
   uint16_t command_len = mk_cmd_buf(command_buf, op_code, AddrSel);
   uint32_t loop_cnt = 0;
   
-  wiznet_spi_pio_frame_start();
+  wiznet_spi_pio_frame_start(chipSelect);
 
   pio_sm_set_enabled(active_state->pio, active_state->pio_sm, false);
   pio_sm_set_wrap(active_state->pio, active_state->pio_sm, active_state->pio_offset, active_state->pio_offset + PIO_OFFSET_READ_BITS_END - 1);
@@ -518,7 +533,7 @@ void wiznet_spi_pio_read_byte(uint8_t op_code, uint16_t AddrSel, uint8_t *rx, ui
   dma_channel_abort(active_state->dma_out);
   dma_channel_abort(active_state->dma_in);
 
-  wiznet_spi_pio_frame_start();
+  wiznet_spi_pio_frame_start(chipSelect);
 
   dma_channel_config out_config = dma_channel_get_default_config(active_state->dma_out);
   channel_config_set_transfer_data_size(&out_config, DMA_SIZE_8);
@@ -546,7 +561,7 @@ void wiznet_spi_pio_read_byte(uint8_t op_code, uint16_t AddrSel, uint8_t *rx, ui
 
   pio_sm_set_enabled(active_state->pio, active_state->pio_sm, false);
   pio_sm_exec(active_state->pio, active_state->pio_sm, pio_encode_mov(pio_pins, pio_null)); 
-  wiznet_spi_pio_frame_end();
+  wiznet_spi_pio_frame_end(chipSelect);
   
   #endif
 }
@@ -554,6 +569,9 @@ void wiznet_spi_pio_read_byte(uint8_t op_code, uint16_t AddrSel, uint8_t *rx, ui
 void wiznet_spi_pio_write_byte(uint8_t op_code, uint16_t AddrSel, uint8_t *tx, uint16_t tx_length)  
 {
     uint8_t command_buf[8] = {0,}; //[8] = {0,};
+    uint8_t chipSelect = ((op_code & 0b00100000) >> 5)| cs_select ; 
+    op_code = (op_code)|(_W6300_SPI_WRITE_) ; 
+
     uint16_t command_len = mk_cmd_buf(command_buf, op_code, AddrSel);
     uint32_t loop_cnt = 0;
     tx_length = tx_length + command_len;
@@ -596,7 +614,7 @@ void wiznet_spi_pio_write_byte(uint8_t op_code, uint16_t AddrSel, uint8_t *tx, u
     pio_sm_exec(active_state->pio, active_state->pio_sm, pio_encode_jmp(active_state->pio_offset));
     dma_channel_abort(active_state->dma_out);
   
-    wiznet_spi_pio_frame_start();
+    wiznet_spi_pio_frame_start(chipSelect);
 
     dma_channel_config out_config = dma_channel_get_default_config(active_state->dma_out);
     channel_config_set_transfer_data_size(&out_config, DMA_SIZE_8);
@@ -633,7 +651,7 @@ void wiznet_spi_pio_write_byte(uint8_t op_code, uint16_t AddrSel, uint8_t *tx, u
     pio_sm_exec(active_state->pio, active_state->pio_sm, pio_encode_mov(pio_pins, pio_null)); 
   
     pio_sm_set_enabled(active_state->pio, active_state->pio_sm, false);
-    wiznet_spi_pio_frame_end();
+    wiznet_spi_pio_frame_end(chipSelect);
   #endif
   }
 #else
@@ -781,13 +799,15 @@ static void wiznet_spi_pio_set_inactive(void) {
     active_state = NULL;
 }
 
+
+// for 2 port
 static void wizchip_spi_pio_reset(wiznet_spi_handle_t handle) {
 
     spi_pio_state_t *state = (spi_pio_state_t *)handle;
-    gpio_set_dir(state->spi_config->reset_pin, GPIO_OUT);
-    gpio_put(state->spi_config->reset_pin, 0);
+    gpio_set_dir(state->spi_config->reset_pin[0], GPIO_OUT);
+    gpio_put(state->spi_config->reset_pin[0], 0);
     sleep_ms(100);
-    gpio_put(state->spi_config->reset_pin, 1);
+    gpio_put(state->spi_config->reset_pin[0], 1);
     sleep_ms(100);
 
 }

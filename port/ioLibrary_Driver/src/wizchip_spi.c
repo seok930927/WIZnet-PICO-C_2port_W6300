@@ -54,8 +54,10 @@ static dma_channel_config dma_channel_config_rx;
         .data_io1_pin = PIO_SPI_DATA_IO1_PIN,
         .data_io2_pin = PIO_SPI_DATA_IO2_PIN,
         .data_io3_pin = PIO_SPI_DATA_IO3_PIN,
-        .cs_pin = PIN_CS,
-        .reset_pin = PIN_RST,
+        .cs_pin[0] = PIN_CS_0,
+        .cs_pin[1] = PIN_CS_1,
+        .reset_pin[0] = PIN_RST_0,
+        .reset_pin[1] = PIN_RST_1,
         .irq_pin = PIO_IRQ_PIN,
     };
     #else
@@ -80,27 +82,32 @@ wiznet_spi_handle_t spi_handle;
  */
 static inline void wizchip_select(void)
 {
-    gpio_put(PIN_CS, 0);
+    gpio_put(g_spi_config.cs_pin[0], 0);
 }
 
 static inline void wizchip_deselect(void)
 {
-    gpio_put(PIN_CS, 1);
+    gpio_put(g_spi_config.cs_pin[0], 1);
 
 }
 
 void wizchip_reset()
 {
-    gpio_init(PIN_RST);
-    gpio_set_dir(PIN_RST, GPIO_OUT);
+    gpio_init(g_spi_config.reset_pin[0]);
+    gpio_set_dir(g_spi_config.reset_pin[0], GPIO_OUT);
+
+    gpio_init(g_spi_config.reset_pin[1]);
+    gpio_set_dir(g_spi_config.reset_pin[1], GPIO_OUT);
     
-    gpio_put(PIN_RST, 0);
+    gpio_put(g_spi_config.reset_pin[0], 0);
+    gpio_put(g_spi_config.reset_pin[1], 0);
     sleep_ms(100);
 
-    gpio_put(PIN_RST, 1);
+    gpio_put(g_spi_config.reset_pin[0], 1);
+    gpio_put(g_spi_config.reset_pin[1], 1);
     sleep_ms(100);
 
-    bi_decl(bi_1pin_with_name(PIN_RST, "WIZCHIP RESET"));
+    bi_decl(bi_1pin_with_name(PIN_RST_0, "WIZCHIP RESET"));
 }
 
 #ifndef USE_PIO
@@ -252,14 +259,15 @@ void wizchip_initialize(void)
 {
 
 #ifdef USE_PIO
-    (*spi_handle)->frame_end();
+    (*spi_handle)->frame_end(0);
+    (*spi_handle)->frame_end(1);
     #if   (_WIZCHIP_ == W6300)
         reg_wizchip_qspi_cbfunc((*spi_handle)->read_byte, (*spi_handle)->write_byte);
     #else
         reg_wizchip_spi_cbfunc((*spi_handle)->read_byte, (*spi_handle)->write_byte);
         reg_wizchip_spiburst_cbfunc((*spi_handle)->read_buffer, (*spi_handle)->write_buffer);
     #endif
-    reg_wizchip_cs_cbfunc((*spi_handle)->frame_start, (*spi_handle)->frame_end);
+ //   reg_wizchip_cs_cbfunc((*spi_handle)->frame_start, (*spi_handle)->frame_end);
 
 #else
     /* Deselect the FLASH : chip select high */

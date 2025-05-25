@@ -34,8 +34,10 @@
 #define PIO_SPI_DATA_IO1_PIN    19
 #define PIO_SPI_DATA_IO2_PIN    20
 #define PIO_SPI_DATA_IO3_PIN    21
-#define PIN_CS                  16
-#define PIN_RST                 22
+#define PIN_CS_0                16
+#define PIN_RST_0               22
+#define PIN_CS_1                14
+#define PIN_RST_1               15
 
 #else
 /* SPI */
