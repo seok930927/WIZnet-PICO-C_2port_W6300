@@ -14,8 +14,8 @@
 #define ETHERNET_BUF_MAX_SIZE (1024 * 32) // Send and receive cache size
 #define _LOOPBACK_DEBUG_
 #define _LOOPBACK_DEBUG_
-int32_t send_macraw(uint8_t sn, uint8_t *buf, uint16_t len) ;
-int32_t recv_MACRAW(uint8_t sn, uint8_t *buf, uint16_t len); 
+int32_t send_macraw(uint8_t sn, uint8_t *buf, uint32_t len) ;
+int32_t recv_MACRAW(uint8_t sn, uint8_t *buf, uint32_t len); 
 
 static wiz_NetInfo g_net_info_0 =
     {
@@ -133,9 +133,10 @@ int main()
     int  retval2 = socket(8, Sn_MR_MACRAW, 0, 0x20 );
     printf ("return  ==  %d \r\n" , retval);
     printf ("return  ==  %d \r\n" , retval2);
+    uint8_t recv_buf[ETHERNET_BUF_MAX_SIZE*2];
+#if 1
     while (true)
     {          
-        uint8_t recv_buf[ETHERNET_BUF_MAX_SIZE];
         int32_t len0 = recv_MACRAW(0, recv_buf, sizeof(recv_buf));
         if (len0 > 0 )
         {
@@ -144,8 +145,7 @@ int main()
             send_macraw(8, recv_buf + 2, frame_len -2 );
 
         }   
-
-
+        wiz_delay_ms(1);
 
         int32_t len1 = recv_MACRAW(8, recv_buf, sizeof(recv_buf));
         if (len1 > 0 ){
@@ -154,7 +154,80 @@ int main()
             send_macraw(0, recv_buf + 2, frame_len-2);
             // send_macraw(0,recv_buf,len1 );
         }
+        wiz_delay_ms(1);
     }
+#endif 
+#if 0
+
+while (1) {
+    uint16_t sz;
+
+    // 1) 소켓 0 → 8 로 완전히 브리지
+    while ((sz = getSn_RX_RSR(0)) > 0) {
+        int32_t len = recv_MACRAW(0, recv_buf, sz);
+        if (len <= 0) break;  // 에러/버퍼 비었으면 탈출
+
+        // 첫 2바이트는 길이 정보
+        uint16_t frame_len = (recv_buf[0] << 8) | recv_buf[1];
+        // 실제 페이로드만 전송
+        send_macraw(8, recv_buf + 2, frame_len - 2);
+    }
+
+    // 2) 소켓 8 → 0 로 완전히 브리지
+    while ((sz = getSn_RX_RSR(8)) > 0) {
+        int32_t len = recv_MACRAW(8, recv_buf, sz);
+        if (len <= 0) break;
+
+        uint16_t frame_len = (recv_buf[0] << 8) | recv_buf[1];
+        send_macraw(0, recv_buf + 2, frame_len - 2);
+    }
+
+    // (선택) 약간의 여유를 주고 싶으면 짧게 대기
+    // __delay_ms(1);
+}
+#endif 
+#if 0
+
+while (1) {
+    uint16_t rsr, tx_free;
+    int32_t  len;
+    uint16_t frame_len;
+
+    // 1) 먼저 소켓8(=ACK/요청) 패킷 우선 처리
+    rsr = getSn_RX_RSR(8);
+    if (rsr > 0) {
+        if (rsr > ETHERNET_BUF_MAX_SIZE) rsr = ETHERNET_BUF_MAX_SIZE;
+        len = recv_MACRAW(8, recv_buf, rsr);
+        if (len > 2) {
+            frame_len = (recv_buf[0] << 8) | recv_buf[1];
+            // TX 버퍼 여유 체크
+            tx_free = getSn_TX_FSR(0);
+            if (tx_free >= frame_len) {
+                // 실제 이더넷 프레임만 보내기
+                send_macraw(0, recv_buf + 2, frame_len - 2);
+            }
+        }
+    }
+
+    // 2) 그다음 소켓0에서 대용량 데이터 처리
+    rsr = getSn_RX_RSR(0);
+    if (rsr > 0) {
+        if (rsr > ETHERNET_BUF_MAX_SIZE) rsr = ETHERNET_BUF_MAX_SIZE;
+        len = recv_MACRAW(0, recv_buf, rsr);
+        if (len > 2) {
+            frame_len = (recv_buf[0] << 8) | recv_buf[1];
+            tx_free = getSn_TX_FSR(8);
+            if (tx_free >= frame_len) {
+                send_macraw(8, recv_buf + 2, frame_len - 2);
+            }
+        }
+    }
+
+    // (선택) 다른 작업과 타이밍 조절이 필요하면 짧게 휴식
+    // __delay_ms(1);
+}
+#endif 
+
 }
 
 static void set_clock_khz(void)
@@ -172,7 +245,7 @@ static void set_clock_khz(void)
     );
 }
 
-int32_t recv_MACRAW(uint8_t sn, uint8_t *buf, uint16_t len)
+int32_t recv_MACRAW(uint8_t sn, uint8_t *buf, uint32_t len)
 {
    uint16_t recvsize = getSn_RX_RSR(sn);  // Check the size of the received data available
 
@@ -186,7 +259,7 @@ int32_t recv_MACRAW(uint8_t sn, uint8_t *buf, uint16_t len)
 
    return (int32_t)len;                   // Return the actual size of the received data
 }
-int32_t send_macraw(uint8_t sn, uint8_t *buf, uint16_t len) {
+int32_t send_macraw(uint8_t sn, uint8_t *buf, uint32_t len) {
     uint16_t freesize = 0;
 
    // CHECK_SOCKNUM();
