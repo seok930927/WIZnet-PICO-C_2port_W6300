@@ -67,7 +67,7 @@ void WIZCHIP_WRITE(uint32_t AddrSel, uint8_t wb )
       tAD[3] = wb;
       WIZCHIP.IF.BUS._write_data_buf(IDM_AR0, tAD, 4, 1);
    #else //w6300 QSPI MODE
-      opcode = (uint8_t)((AddrSel & 0x000000FF)| (_W6300_SPI_WRITE_)|(_WIZCHIP_QSPI_MODE_));
+      opcode = (uint8_t)((AddrSel & 0x000000FF)|(_WIZCHIP_QSPI_MODE_));
       ADDR = (uint16_t)((AddrSel & 0x00ffff00) >> 8 );
       WIZCHIP.IF.QSPI._write_qspi(opcode, ADDR, &wb, 1);
    #endif
@@ -88,7 +88,10 @@ uint8_t  WIZCHIP_READ(uint32_t AddrSel)
       WIZCHIP.IF.BUS._write_data_buf(IDM_AR0,tAD,3,1);
       ret[0] = WIZCHIP.IF.BUS._read_data(IDM_DR);
 #else
-      opcode = (uint8_t)((AddrSel & 0x000000FF)| (_W6300_SPI_READ_)|(_WIZCHIP_QSPI_MODE_));
+      opcode = (uint8_t)((AddrSel & 0x000000FF)|(_WIZCHIP_QSPI_MODE_));
+      // 00 0 000 00
+      // -> 주소를 
+      // 00 0000 00 
       ADDR = (uint16_t)((AddrSel & 0x00ffff00) >> 8 );
       WIZCHIP.IF.QSPI._read_qspi(opcode, ADDR, ret, 1);
 #endif
@@ -110,7 +113,7 @@ void WIZCHIP_WRITE_BUF(uint32_t AddrSel, uint8_t* pBuf, datasize_t len)
       WIZCHIP.IF.BUS._write_data_buf(IDM_AR0,tAD, 3, 1);
       WIZCHIP.IF.BUS._write_data_buf(IDM_DR,pBuf,len, 0);
 #else
-      opcode = (uint8_t)((AddrSel & 0x000000FF)| (_W6300_SPI_WRITE_)|(_WIZCHIP_QSPI_MODE_));
+      opcode = (uint8_t)((AddrSel & 0x000000FF)|(_WIZCHIP_QSPI_MODE_));
       ADDR = (uint16_t)((AddrSel & 0x00ffff00) >> 8 );
       WIZCHIP.IF.QSPI._write_qspi(opcode, ADDR, pBuf, len);//by_lihan
       //qspi_write_buf(opcode, ADDR, pBuf, len); 
@@ -132,7 +135,7 @@ void WIZCHIP_READ_BUF (uint32_t AddrSel, uint8_t* pBuf, datasize_t len)
       WIZCHIP.IF.BUS._write_data_buf(IDM_AR0,tAD,3,1);
       WIZCHIP.IF.BUS._read_data_buf(IDM_DR,pBuf,len,0);
 #else
-      opcode = (uint8_t)((AddrSel & 0x000000FF)| (_W6300_SPI_READ_)|(_WIZCHIP_QSPI_MODE_));
+      opcode = (uint8_t)((AddrSel & 0x000000FF)|(_WIZCHIP_QSPI_MODE_));
       ADDR = (uint16_t)((AddrSel & 0x00ffff00) >> 8 );
       WIZCHIP.IF.QSPI._read_qspi(opcode, ADDR, pBuf, len);//by_lihan
       //qspi_read_buf(opcode, ADDR, pBuf, len);

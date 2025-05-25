@@ -478,7 +478,7 @@ int8_t ctlwizchip(ctlwizchip_type cwtype, void* arg)
          if(arg != 0) 
          {
             ptmp[0] = (uint8_t*)arg;
-            ptmp[1] = ptmp[0] + _WIZCHIP_SOCK_NUM_;
+            ptmp[1] = ptmp[0] + 8;
          }
          return wizchip_init(ptmp[0], ptmp[1]);
       case CW_CLR_INTERRUPT:
@@ -695,7 +695,7 @@ int8_t wizchip_init(uint8_t* txsize, uint8_t* rxsize)
 		}
 		if(tmp % 8) return -1;
 #else
-		for(i = 0 ; i < _WIZCHIP_SOCK_NUM_; i++)
+		for(i = 0 ; i < 8; i++)
 		{
 			tmp += txsize[i];
 
@@ -708,7 +708,7 @@ int8_t wizchip_init(uint8_t* txsize, uint8_t* rxsize)
 #endif
 		}
 #endif
-		for(i = 0 ; i < _WIZCHIP_SOCK_NUM_; i++)
+		for(i = 0 ; i < 8; i++)
 		{
 #if _WIZCHIP_ < W5200	//2016.10.28 peter add condition for w5100
 			j = 0;
@@ -732,7 +732,7 @@ int8_t wizchip_init(uint8_t* txsize, uint8_t* rxsize)
 		}
 		if(tmp % 8) return -1;
 #else
-		for(i = 0 ; i < _WIZCHIP_SOCK_NUM_; i++)
+		for(i = 0 ; i < 8; i++)
 		{
 			tmp += rxsize[i];
 #if _WIZCHIP_ < W5200	//2016.10.28 peter add condition for w5100 and w5100s
@@ -744,7 +744,7 @@ int8_t wizchip_init(uint8_t* txsize, uint8_t* rxsize)
 #endif
 		}
 #endif
-		for(i = 0 ; i < _WIZCHIP_SOCK_NUM_; i++)
+		for(i = 0 ; i < 8; i++)
 		{
 #if _WIZCHIP_ < W5200	// add condition for w5100
 			j = 0;
