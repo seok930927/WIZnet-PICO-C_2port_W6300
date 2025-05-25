@@ -5,6 +5,7 @@
 #include "wizchip_spi.h"
 #include "loopback.h"
 #include "socket.h"
+#include "wizchip_qspi_pio.h"
 
 /* Clock */
 #define PLL_SYS_KHZ (133 * 1000)
@@ -13,7 +14,7 @@
 #define ETHERNET_BUF_MAX_SIZE (1024 * 2) // Send and receive cache size
 #define _LOOPBACK_DEBUG_
 
-static wiz_NetInfo g_net_info =
+static wiz_NetInfo g_net_info_0 =
     {
         .mac = {0x00, 0x08, 0xDC, 0x12, 0x34, 0x56}, // MAC address
         .ip = {192, 168, 11, 2},                     // IP address
@@ -47,6 +48,39 @@ static wiz_NetInfo g_net_info =
 #endif
 };
 
+static wiz_NetInfo g_net_info_1 =
+    {
+        .mac = {0x00, 0x08, 0xDC, 0x12, 0x34, 0x58}, // MAC address
+        .ip = {192, 168, 11, 3},                     // IP address
+        .sn = {255, 255, 255, 0},                    // Subnet Mask
+        .gw = {192, 168, 11, 1},                     // Gateway
+        .dns = {8, 8, 8, 8},                         // DNS server
+#if _WIZCHIP_ > W5500
+        .lla = {0xfe, 0x80, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x02, 0x08, 0xdc, 0xff,
+                0xfe, 0x57, 0x57, 0x25},             // Link Local Address
+        .gua = {0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00},             // Global Unicast Address
+        .sn6 = {0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff, 0xff, 0xff,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00},             // IPv6 Prefix
+        .gw6 = {0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00},             // Gateway IPv6 Address
+        .dns6 = {0x20, 0x01, 0x48, 0x60,
+                0x48, 0x60, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x88, 0x88},             // DNS6 server
+        .ipmode = NETINFO_STATIC_ALL
+#else
+        .dhcp = NETINFO_STATIC        
+#endif
+};
 
 static uint8_t ethernet_buf[ETHERNET_BUF_MAX_SIZE] = {
     0,
@@ -62,15 +96,34 @@ int main()
 
     /*mcu init*/
     stdio_init_all(); // Initialize the main control peripheral.
+
+    sleep_ms(1000 * 3);
+    
+    printf("==========================================================\n");
+    printf("Compiled @ %s, %s\n", __DATE__, __TIME__);
+    printf("==========================================================\n");
+
     wizchip_spi_initialize();
     wizchip_cris_initialize();
     wizchip_reset();
+
+
+    set_cs_select(0);
     wizchip_initialize(); // spi initialization
     wizchip_check();
 
-    network_initialize(g_net_info);
+    network_initialize(g_net_info_0);
 
-    print_network_information(g_net_info); // Read back the configuration information and print it
+    print_network_information(g_net_info_0); // Read back the configuration information and print it
+    set_cs_select(1);
+    wizchip_initialize(); // spi initialization
+    wizchip_check();
+
+    network_initialize(g_net_info_1);
+
+    print_network_information(g_net_info_1); // Read back the configuration information and print it
+    set_cs_select(0);
+
 
     while (true)
     {
@@ -135,6 +188,9 @@ int32_t loopback_tcps_multi_socket(uint8_t *buf, uint16_t port)
             }
             getSn_DIPR(sn, destip);
             destport = getSn_DPORT(sn);
+
+
+
             printf("socket%d from:%d.%d.%d.%d port: %d  message:%s\r\n", sn, destip[0], destip[1], destip[2], destip[3], destport, buf);
         }
         break;
@@ -168,7 +224,7 @@ int32_t loopback_tcps_multi_socket(uint8_t *buf, uint16_t port)
     default:
         break;
     }
-
+                15  ;
     if (sn >= (_WIZCHIP_SOCK_NUM_  - 1))    
         sn = 0;
     else
