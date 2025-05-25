@@ -145,7 +145,6 @@ int main()
             send_macraw(8, recv_buf + 2, frame_len -2 );
 
         }   
-        wiz_delay_ms(1);
 
         int32_t len1 = recv_MACRAW(8, recv_buf, sizeof(recv_buf));
         if (len1 > 0 ){
@@ -154,7 +153,6 @@ int main()
             send_macraw(0, recv_buf + 2, frame_len-2);
             // send_macraw(0,recv_buf,len1 );
         }
-        wiz_delay_ms(1);
     }
 #endif 
 #if 0
