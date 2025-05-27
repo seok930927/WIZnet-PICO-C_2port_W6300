@@ -16,7 +16,18 @@
 #define _LOOPBACK_DEBUG_
 int32_t send_macraw(uint8_t sn, uint8_t *buf, uint32_t len) ;
 int32_t recv_MACRAW(uint8_t sn, uint8_t *buf, uint32_t len); 
+int32_t Ethernet_Frame_pass_through(uint8_t sn_source, uint8_t sn_dest,  uint8_t *buf, uint32_t len);
+uint32_t get_tcp_seq(const uint8_t *ether_frame)
+{
+    // Ethernet 헤더는 항상 14바이트
+    uint8_t ip_header_len = (ether_frame[14] & 0x0F) * 4;
+    uint16_t tcp_offset = 14 + ip_header_len;
 
+    return (ether_frame[tcp_offset + 4] << 24) |
+           (ether_frame[tcp_offset + 5] << 16) |
+           (ether_frame[tcp_offset + 6] << 8)  |
+           (ether_frame[tcp_offset + 7]);
+}
 static wiz_NetInfo g_net_info_0 =
     {
         .mac = {0x00, 0x08, 0xDC, 0x12, 0x34, 0x56}, // MAC address
@@ -133,26 +144,15 @@ int main()
     int  retval2 = socket(8, Sn_MR_MACRAW, 0, 0x20 );
     printf ("return  ==  %d \r\n" , retval);
     printf ("return  ==  %d \r\n" , retval2);
-    uint8_t recv_buf[ETHERNET_BUF_MAX_SIZE*2];
+    uint8_t recv_buf_0[ETHERNET_BUF_MAX_SIZE*2];
+    uint8_t recv_buf_1[ETHERNET_BUF_MAX_SIZE*2];
 #if 1
     while (true)
     {          
-        int32_t len0 = recv_MACRAW(0, recv_buf, sizeof(recv_buf));
-        if (len0 > 0 )
-        {
-            uint32_t frame_len = (recv_buf[0] << 8) | recv_buf[1];
-            // printf("1data[%d/%d ] = %s \r\n " ,len0,frame_len,  recv_buf); 
-            send_macraw(8, recv_buf + 2, frame_len -2 );
+        Ethernet_Frame_pass_through(0,8 ,recv_buf_0, sizeof(recv_buf_0));
+        Ethernet_Frame_pass_through(8,0, recv_buf_1, sizeof(recv_buf_0));
+        // sleep_ms(1);
 
-        }   
-
-        int32_t len1 = recv_MACRAW(8, recv_buf, sizeof(recv_buf));
-        if (len1 > 0 ){
-            uint32_t frame_len = (recv_buf[0] << 8) | recv_buf[1];
-            // printf("1data[%d/%d ] = %s \r\n " ,len1,frame_len,  recv_buf); 
-            send_macraw(0, recv_buf + 2, frame_len-2);
-            // send_macraw(0,recv_buf,len1 );
-        }
     }
 #endif 
 #if 0
@@ -243,7 +243,68 @@ static void set_clock_khz(void)
     );
 }
 
-int32_t recv_MACRAW(uint8_t sn, uint8_t *buf, uint32_t len)
+#if 1
+int32_t Ethernet_Frame_pass_through(uint8_t sn_source, uint8_t sn_dest,  uint8_t *buf, uint32_t len)
+{
+   volatile uint16_t recvsize = getSn_RX_RSR(sn_source);  // Check the size of the received data available
+    while((recvsize) !=0 ){
+  
+        if (recvsize == 0) return 0; // No data has been received yet
+        if (recvsize < len) len = recvsize;    // Limit the requested data to avoid exceeding the buffer size
+
+        wiz_recv_data(sn_source, buf, len);           // Store the received data in the buffer
+        // Wait until the command register is released
+           
+        
+        uint16_t freesize = getSn_TX_FSR(sn_dest);
+        // Check if the data to be sent exceeds the maximum frame size
+        uint32_t len2 =((buf[0] << 8) | buf[1]) -2  ; 
+        if (len2 > freesize) len2 = freesize; 
+        // Send the data    
+        
+        wiz_send_data(sn_dest, buf+2, len2);
+        
+        setSn_CR(sn_dest, Sn_CR_SEND);              // Set the signal for completion of reception
+        setSn_CR(sn_source, Sn_CR_RECV);
+        
+        while (getSn_CR(sn_source)  & Sn_CR_RECV  );
+        while (getSn_CR(sn_dest) & Sn_CR_SEND);
+        
+        recvsize = getSn_RX_RSR(sn_source);  // Check the size of the received data available
+        //sleep_ms(1);
+    }
+   return (int32_t)len;                   // Return the actual size of the received data
+}
+   #else
+int32_t Ethernet_Frame_pass_through(uint8_t sn_source, uint8_t sn_dest,  uint8_t *buf, uint32_t len)
+{
+   uint16_t recvsize = getSn_RX_RSR(sn_source);  // Check the size of the received data available
+
+   if (recvsize == 0) return SOCK_BUSY;   // No data has been received yet
+   if (recvsize < len) len = recvsize;    // Limit the requested data to avoid exceeding the buffer size
+
+   wiz_recv_data(sn_source, buf, len);           // Store the received data in the buffer
+                 // Wait until the command register is released
+
+   uint16_t freesize = getSn_TX_FSR(sn_dest);
+    // Check if the data to be sent exceeds the maximum frame size
+    uint32_t len2 = (buf[0] << 8) | buf[1] ; 
+    if (len2 > freesize) len2 = freesize; 
+    // Send the data    
+   wiz_send_data(sn_dest, buf+2, len2 -2);
+
+
+  
+   setSn_CR(sn_dest, Sn_CR_SEND);              // Set the signal for completion of reception
+   setSn_CR(sn_source, Sn_CR_RECV);
+
+   while (getSn_CR(sn_source));
+   while (getSn_CR(sn_dest));
+
+   return (int32_t)len;                   // Return the actual size of the received data
+}
+#endif 
+int32_t recv_MACRAW_0(uint8_t sn, uint8_t *buf, uint32_t len)
 {
    uint16_t recvsize = getSn_RX_RSR(sn);  // Check the size of the received data available
 
@@ -257,7 +318,7 @@ int32_t recv_MACRAW(uint8_t sn, uint8_t *buf, uint32_t len)
 
    return (int32_t)len;                   // Return the actual size of the received data
 }
-int32_t send_macraw(uint8_t sn, uint8_t *buf, uint32_t len) {
+int32_t send_macraw_0(uint8_t sn, uint8_t *buf, uint32_t len) {
     uint16_t freesize = 0;
 
    // CHECK_SOCKNUM();
@@ -275,7 +336,6 @@ int32_t send_macraw(uint8_t sn, uint8_t *buf, uint32_t len) {
 
     // Check if the data to be sent exceeds the maximum frame size
     if (len > freesize) len = freesize;
-
     // Send the data    
     wiz_send_data(sn, buf, len);
   
@@ -287,4 +347,48 @@ int32_t send_macraw(uint8_t sn, uint8_t *buf, uint32_t len) {
     while (getSn_CR(sn));
 
     return (int32_t)len;   // Return the number of bytes
+}
+
+int32_t send_macraw(uint8_t sn, uint8_t *buf, uint32_t len) {
+    uint16_t freesize = 0;
+
+    // 소켓 상태 확인
+    if (getSn_SR(sn) != SOCK_MACRAW) {
+        close(sn);
+        printf("error -1 \r\n");
+        return SOCKERR_SOCKSTATUS;
+    }
+
+    // TX 버퍼 확인 (충분한 공간이 확보될 때까지 대기)
+    uint32_t timeout = 0;
+    do {
+        freesize = getSn_TX_FSR(sn);
+        sleep_ms(1);
+        if (++timeout > 1000) {
+            printf("TX buffer timeout!\n");
+            return -2;
+        }
+    } while (freesize < len);
+
+    // 전송
+    wiz_send_data(sn, buf, len);
+    setSn_CR(sn, Sn_CR_SEND);
+
+    // SEND 명령 처리 대기
+    while (getSn_CR(sn));
+
+    // SEND 완료 플래그 대기
+    timeout = 0;
+    while ((getSn_IR(sn) & Sn_IR_SENDOK) != Sn_IR_SENDOK) {
+        sleep_ms(1);
+        if (++timeout > 1000) {
+            printf("SEND_OK timeout!\n");
+            return -3;
+        }
+    }
+
+    // SEND_OK 비트 클리어
+    setSn_IR(sn, Sn_IR_SENDOK);  // 클리어하려면 1을 써야 함
+
+    return (int32_t)len;
 }
