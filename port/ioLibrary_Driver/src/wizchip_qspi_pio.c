@@ -485,7 +485,7 @@ void wiznet_spi_pio_read_byte(uint8_t op_code, uint16_t AddrSel, uint8_t *rx, ui
 {
     uint8_t command_buf[8] = {0,};
 
-    uint8_t chipSelect = ((op_code & 0b00100000) >> 5)| cs_select ; 
+    uint8_t chipSelect = ((op_code & 0x20) >> 5)| cs_select ; 
     op_code = (op_code & 0xDF) ; 
 
   uint16_t command_len = mk_cmd_buf(command_buf, op_code, AddrSel);

@@ -121,7 +121,7 @@ int main()
     wizchip_cris_initialize();
     wizchip_reset();
 
-
+    /* chip init W6300_0*/
     set_cs_select(0);
     wizchip_initialize(); // spi initialization
     wizchip_check();
@@ -129,6 +129,9 @@ int main()
     network_initialize(g_net_info_0);
 
     print_network_information(g_net_info_0); // Read back the configuration information and print it
+    /* chip init finish*/
+
+    /* chip init W6300_1*/
     set_cs_select(1);
     wizchip_initialize(); // spi initialization
     wizchip_check();
@@ -136,6 +139,8 @@ int main()
     network_initialize(g_net_info_1);
 
     print_network_information(g_net_info_1); // Read back the configuration information and print it
+    /* chip init finish*/
+
     set_cs_select(0);
 
 

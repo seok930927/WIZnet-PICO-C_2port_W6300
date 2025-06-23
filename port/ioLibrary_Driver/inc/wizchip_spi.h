@@ -28,16 +28,18 @@
 #elif (DEVICE_BOARD_NAME == W6300_EVB_PICO || DEVICE_BOARD_NAME == W6300_EVB_PICO2)
 
 #define USE_PIO
-#define PIO_IRQ_PIN             15
-#define PIO_SPI_SCK_PIN         17
-#define PIO_SPI_DATA_IO0_PIN    18
-#define PIO_SPI_DATA_IO1_PIN    19
-#define PIO_SPI_DATA_IO2_PIN    20
-#define PIO_SPI_DATA_IO3_PIN    21
-#define PIN_CS_0                16
-#define PIN_RST_0               22
-#define PIN_CS_1                14
-#define PIN_RST_1               15
+
+#define PIO_IRQ_PIN             13 // W6300_0, W6300_1
+#define PIO_SPI_SCK_PIN         17 // W6300_0, W6300_1
+#define PIO_SPI_DATA_IO0_PIN    18 // W6300_0, W6300_1
+#define PIO_SPI_DATA_IO1_PIN    19 // W6300_0, W6300_1
+#define PIO_SPI_DATA_IO2_PIN    20 // W6300_0, W6300_1
+#define PIO_SPI_DATA_IO3_PIN    21 // W6300_0, W6300_1
+
+#define PIN_CS_0                16 // W6300_0
+#define PIN_RST_0               22 // W6300_0
+#define PIN_CS_1                14 // W6300_1
+#define PIN_RST_1               15 // W6300_1
 
 #else
 /* SPI */
