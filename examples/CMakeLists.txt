@@ -2,3 +2,4 @@
 add_subdirectory(tcp_server_multi_socket)
 add_subdirectory(macrawtest)
 add_subdirectory(loopback)
+add_subdirectory(TLS_TEST)
