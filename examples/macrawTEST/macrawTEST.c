@@ -130,7 +130,7 @@ int main()
 
     print_network_information(g_net_info_0); // Read back the configuration information and print it
     /* chip init finish*/
-
+    printf("chip 0 is okay \r\n") ;
     /* chip init W6300_1*/
     set_cs_select(1);
     wizchip_initialize(); // spi initialization
@@ -151,13 +151,19 @@ int main()
     printf ("return  ==  %d \r\n" , retval2);
     uint8_t recv_buf_0[ETHERNET_BUF_MAX_SIZE*2];
     uint8_t recv_buf_1[ETHERNET_BUF_MAX_SIZE*2];
+    uint16_t recv_len_0 = 0 , recv_len_1 = 0 ; 
 #if 1
     while (true)
-    {          
-        Ethernet_Frame_pass_through(0,8 ,recv_buf_0, sizeof(recv_buf_0));
-        Ethernet_Frame_pass_through(8,0, recv_buf_1, sizeof(recv_buf_0));
+    {    
+        if((recv_len_0 = getSn_RX_RSR(0)) > 0){
+               Ethernet_Frame_pass_through(0,8 ,recv_buf_0, recv_len_0);
+        }
+        if((recv_len_1 = getSn_RX_RSR(8)) > 0){
+            Ethernet_Frame_pass_through(8,0, recv_buf_1, recv_len_1);
+        }
         // sleep_ms(1);
-
+        // printf("recv_len_0 = %04d \r\n",recv_len_0 ); 
+        // printf("recv_len_1 = %04d \r\n",recv_len_1 ) ; 
     }
 #endif 
 #if 0
@@ -248,8 +254,52 @@ static void set_clock_khz(void)
     );
 }
 
-#if 1
+void pointer_update(uint8_t sn, uint8_t *wizdata, uint16_t len)
+{
+   uint16_t ptr = 0;
+   ptr = getSn_TX_WR(sn);
+   ptr += len;
+   setSn_TX_WR(sn,ptr);
+}
+
+
 int32_t Ethernet_Frame_pass_through(uint8_t sn_source, uint8_t sn_dest,  uint8_t *buf, uint32_t len)
+{
+    volatile uint16_t recvsize = len;  // Check the size of the received data available
+    // uint16_t ptr = 0;
+    // uint16_t freesize = recvsize ;
+    uint32_t send_ptr = 0;
+
+    wiz_recv_data(sn_source, buf, recvsize); 
+
+    setSn_CR(sn_source, Sn_CR_RECV);
+
+    while((recvsize)  ){
+        
+        // Check if the data to be sent exceeds the maximum frame size
+        uint32_t len2 =((buf[send_ptr] << 8) | buf[send_ptr+1])-2 ; 
+        // Send the data    
+#if 1
+        wiz_send_data(sn_dest,  (uint8_t *)(buf + send_ptr + 2), len2);
+#else
+        uint16_t ptr = 0;
+        ptr = getSn_TX_WR(sn_dest);
+        ptr += len2;
+        setSn_TX_WR(sn_dest,ptr);
+#endif 
+
+        setSn_CR(sn_dest, Sn_CR_SEND);              // Set the signal for completion of reception
+
+        // while (getSn_CR(sn_dest) & Sn_CR_SEND);//
+        
+        send_ptr += (len2 + 2) ;
+        recvsize -= (len2 + 2) ;
+    }
+
+   return (int32_t)len;                   // Return the actual size of the received data
+}
+#if 1
+int32_t Ethernet_Frame_pass_through_2(uint8_t sn_source, uint8_t sn_dest,  uint8_t *buf, uint32_t len)
 {
    volatile uint16_t recvsize = getSn_RX_RSR(sn_source);  // Check the size of the received data available
     while((recvsize) !=0 ){
@@ -257,20 +307,20 @@ int32_t Ethernet_Frame_pass_through(uint8_t sn_source, uint8_t sn_dest,  uint8_t
         if (recvsize == 0) return 0; // No data has been received yet
         if (recvsize < len) len = recvsize;    // Limit the requested data to avoid exceeding the buffer size
 
-        wiz_recv_data(sn_source, buf, len);           // Store the received data in the buffer
+        wiz_recv_data(sn_source, buf, 2);           // Store the received data in the buffer
         // Wait until the command register is released
-           
+        setSn_CR(sn_source, Sn_CR_RECV);
         
         uint16_t freesize = getSn_TX_FSR(sn_dest);
         // Check if the data to be sent exceeds the maximum frame size
         uint32_t len2 =((buf[0] << 8) | buf[1]) -2  ; 
         if (len2 > freesize) len2 = freesize; 
         // Send the data    
-        
-        wiz_send_data(sn_dest, buf+2, len2);
-        
-        setSn_CR(sn_dest, Sn_CR_SEND);              // Set the signal for completion of reception
+        wiz_recv_data(sn_source, buf, len2);    
         setSn_CR(sn_source, Sn_CR_RECV);
+
+        wiz_send_data(sn_dest, buf, len2);
+        setSn_CR(sn_dest, Sn_CR_SEND);              // Set the signal for completion of reception
         
         while (getSn_CR(sn_source)  & Sn_CR_RECV  );
         while (getSn_CR(sn_dest) & Sn_CR_SEND);

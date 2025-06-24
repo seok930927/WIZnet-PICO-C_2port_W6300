@@ -14,7 +14,7 @@ cmake_minimum_required(VERSION 3.12)
 set(BOARD_NAME W6300_EVB_PICO2)
 
 # Set WIZchip Clock Speed
-set(WIZCHIP_SPI_SCLK_SPEED 30)
+set(WIZCHIP_SPI_SCLK_SPEED 32)
 add_definitions(-D_WIZCHIP_SPI_SCLK_SPEED=${WIZCHIP_SPI_SCLK_SPEED})
 
 if(${BOARD_NAME} STREQUAL WIZnet_Ethernet_HAT)
